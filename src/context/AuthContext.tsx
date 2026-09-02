@@ -90,8 +90,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.functions.invoke('admin-login', {
+      body: { email, password },
+    });
+
     if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+
+    if (sessionError) throw sessionError;
 
     const adminProfile = await fetchAdminProfile(data.user.id);
     if (!adminProfile) {
