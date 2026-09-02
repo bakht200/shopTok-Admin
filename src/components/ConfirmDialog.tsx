@@ -1,8 +1,12 @@
+import { AlertTriangle } from 'lucide-react';
+import { Button } from './ui/Button';
+
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
   message: string;
   confirmLabel?: string;
+  variant?: 'danger' | 'primary';
   onConfirm: () => void;
   onCancel: () => void;
   loading?: boolean;
@@ -13,6 +17,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Confirm',
+  variant = 'primary',
   onConfirm,
   onCancel,
   loading = false,
@@ -20,27 +25,41 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="mt-2 text-sm text-gray-600">{message}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        onClick={onCancel}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl"
+      >
+        <div className="flex gap-4">
+          {variant === 'danger' && (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{message}</p>
+          </div>
+        </div>
+
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={onCancel} disabled={loading}>
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant={variant === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
             disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-50"
           >
             {loading ? 'Working…' : confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
 import { DataTable } from '../components/DataTable';
+import { FilterBar } from '../components/FilterBar';
 import { Layout } from '../components/Layout';
-import { ErrorBanner, LoadingState } from '../components/ui/Feedback';
+import { Button } from '../components/ui/Button';
+import { ErrorBanner } from '../components/ui/Feedback';
 import { Pagination, formatDate } from '../components/Pagination';
 import { PAGE_SIZE, fetchProfiles, setUserBanned } from '../services/adminApi';
 import type { Profile } from '../types/database';
@@ -50,87 +51,92 @@ export function UsersPage() {
 
   return (
     <Layout title="Users" subtitle="Browse, search, and moderate marketplace users">
-      <div className="card mb-6 p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[240px] flex-1">
-            <label htmlFor="search" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Search users
-            </label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                id="search"
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, username, or phone"
-                className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPage(0);
-              setQuery(search);
-            }}
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark"
-          >
-            Search
-          </button>
+      <FilterBar
+        searchLabel="Search users"
+        searchValue={search}
+        searchPlaceholder="Name, username, or phone"
+        onSearchChange={setSearch}
+        onSubmit={() => {
+          setPage(0);
+          setQuery(search);
+        }}
+      />
+
+      {error && (
+        <div className="mb-4">
+          <ErrorBanner message="Failed to load users" detail={error} />
         </div>
-      </div>
-
-      {error && <div className="mb-4"><ErrorBanner message="Failed to load users" detail={error} /></div>}
-      {loading && <LoadingState label="Loading users…" />}
-
-      {!loading && (
-        <>
-          <DataTable
-            rows={rows}
-            rowKey={(row) => row.id}
-            columns={[
-              {
-                key: 'name',
-                header: 'Name',
-                render: (row) => (
-                  <Link to={`/users/${row.id}`} className="font-semibold text-primary hover:underline">
-                    {row.full_name || '—'}
-                  </Link>
-                ),
-              },
-              { key: 'username', header: 'Username', render: (row) => row.username ?? '—' },
-              { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
-              { key: 'role', header: 'Role', render: (row) => <span className="capitalize">{row.role_intent}</span> },
-              {
-                key: 'banned',
-                header: 'Banned',
-                render: (row) => (
-                  <span className={row.is_banned ? 'font-medium text-red-600' : 'text-slate-500'}>
-                    {row.is_banned ? 'Yes' : 'No'}
-                  </span>
-                ),
-              },
-              { key: 'created', header: 'Joined', render: (row) => formatDate(row.created_at) },
-              {
-                key: 'actions',
-                header: 'Actions',
-                render: (row) => (
-                  <button
-                    type="button"
-                    disabled={busyId === row.id || row.is_admin}
-                    onClick={() => toggleBan(row)}
-                    className="text-sm font-semibold text-primary hover:underline disabled:opacity-40"
-                  >
-                    {row.is_banned ? 'Unban' : 'Ban'}
-                  </button>
-                ),
-              },
-            ]}
-          />
-          <Pagination page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
-        </>
       )}
+
+      <DataTable
+        loading={loading}
+        rows={rows}
+        rowKey={(row) => row.id}
+        emptyMessage="No users match your search."
+        columns={[
+          {
+            key: 'name',
+            header: 'Name',
+            render: (row) => (
+              <Link to={`/users/${row.id}`} className="font-semibold text-primary hover:underline">
+                {row.full_name || '—'}
+              </Link>
+            ),
+          },
+          {
+            key: 'username',
+            header: 'Username',
+            render: (row) => (
+              <span className="text-slate-600">{row.username ? `@${row.username}` : '—'}</span>
+            ),
+          },
+          { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
+          {
+            key: 'role',
+            header: 'Role',
+            render: (row) => (
+              <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-700">
+                {row.role_intent}
+              </span>
+            ),
+          },
+          {
+            key: 'banned',
+            header: 'Status',
+            render: (row) =>
+              row.is_banned ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  Banned
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+              ),
+          },
+          { key: 'created', header: 'Joined', render: (row) => formatDate(row.created_at) },
+          {
+            key: 'actions',
+            header: 'Actions',
+            className: 'text-right',
+            render: (row) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busyId === row.id || row.is_admin}
+                onClick={() => toggleBan(row)}
+                className={row.is_banned ? 'text-emerald-600 hover:text-emerald-700' : 'text-red-600 hover:text-red-700'}
+              >
+                {busyId === row.id ? '…' : row.is_banned ? 'Unban' : 'Ban'}
+              </Button>
+            ),
+          },
+        ]}
+      />
+
+      {!loading && <Pagination page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />}
     </Layout>
   );
 }

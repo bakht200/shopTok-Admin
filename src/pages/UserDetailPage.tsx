@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { Avatar } from '../components/ui/Avatar';
+import { DetailCard, DetailRow, ErrorBanner, LoadingState } from '../components/ui/Feedback';
 import { formatDate } from '../components/Pagination';
 import { fetchProfileById, fetchUserStats } from '../services/adminApi';
 import type { Profile } from '../types/database';
@@ -44,72 +46,90 @@ export function UserDetailPage() {
   }, [id]);
 
   return (
-    <Layout title="User detail">
-      <Link to="/users" className="mb-6 inline-block text-sm font-medium text-primary hover:underline">
-        ← Back to users
-      </Link>
-
-      {loading && <p className="text-gray-500">Loading…</p>}
-      {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+    <Layout
+      title={profile?.full_name || profile?.username || 'User detail'}
+      subtitle={profile ? `@${profile.username ?? 'no-username'} · Joined ${formatDate(profile.created_at)}` : undefined}
+      backTo={{ label: 'Back to users', href: '/users' }}
+    >
+      {loading && <LoadingState label="Loading user…" />}
+      {error && <ErrorBanner message="Unable to load user" detail={error} />}
 
       {profile && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="text-lg font-semibold text-gray-900">Profile</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Name</dt>
-                <dd className="text-right font-medium">{profile.full_name || '—'}</dd>
+        <div className="space-y-6">
+          <div className="card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center">
+            <Avatar name={profile.full_name} src={profile.avatar_url} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900">{profile.full_name || 'Unnamed user'}</h2>
+                {profile.is_admin && (
+                  <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
+                    Admin
+                  </span>
+                )}
+                {profile.is_banned && (
+                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                    Banned
+                  </span>
+                )}
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Username</dt>
-                <dd className="text-right">{profile.username ?? '—'}</dd>
+              <p className="mt-1 text-sm text-slate-500">
+                {profile.username ? `@${profile.username}` : 'No username'} · {profile.region}
+              </p>
+              {profile.bio && <p className="mt-2 max-w-xl text-sm text-slate-600">{profile.bio}</p>}
+            </div>
+
+            <div className="flex gap-6 rounded-lg bg-slate-50 px-6 py-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold tabular-nums text-slate-900">{stats?.orders ?? '—'}</p>
+                <p className="text-xs font-medium text-slate-500">Orders</p>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Phone</dt>
-                <dd className="text-right">{profile.phone ?? '—'}</dd>
+              <div className="w-px bg-slate-200" />
+              <div className="text-center">
+                <p className="text-2xl font-bold tabular-nums text-slate-900">{stats?.posts ?? '—'}</p>
+                <p className="text-xs font-medium text-slate-500">Posts</p>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Role intent</dt>
-                <dd className="text-right capitalize">{profile.role_intent}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Region</dt>
-                <dd className="text-right">{profile.region}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Banned</dt>
-                <dd className="text-right">{profile.is_banned ? 'Yes' : 'No'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Admin</dt>
-                <dd className="text-right">{profile.is_admin ? 'Yes' : 'No'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Joined</dt>
-                <dd className="text-right">{formatDate(profile.created_at)}</dd>
-              </div>
-            </dl>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Orders placed</dt>
-                <dd className="font-medium">{stats?.orders ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Posts created</dt>
-                <dd className="font-medium">{stats?.posts ?? '—'}</dd>
-              </div>
-            </dl>
-            {profile.bio && (
-              <div className="mt-6">
-                <p className="text-sm font-medium text-gray-500">Bio</p>
-                <p className="mt-1 text-sm text-gray-700">{profile.bio}</p>
-              </div>
-            )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DetailCard title="Profile details">
+              <dl>
+                <DetailRow label="Full name" value={profile.full_name || '—'} />
+                <DetailRow label="Username" value={profile.username ? `@${profile.username}` : '—'} />
+                <DetailRow label="Phone" value={profile.phone ?? '—'} />
+                <DetailRow label="Role intent" value={<span className="capitalize">{profile.role_intent}</span>} />
+                <DetailRow label="Region" value={profile.region} />
+                <DetailRow
+                  label="Onboarding"
+                  value={
+                    profile.onboarding_complete ? (
+                      <span className="text-emerald-600">Complete</span>
+                    ) : (
+                      <span className="text-amber-600">Incomplete</span>
+                    )
+                  }
+                />
+              </dl>
+            </DetailCard>
+
+            <DetailCard title="Account status">
+              <dl>
+                <DetailRow
+                  label="Account status"
+                  value={
+                    profile.is_banned ? (
+                      <span className="text-red-600">Banned</span>
+                    ) : (
+                      <span className="text-emerald-600">Active</span>
+                    )
+                  }
+                />
+                <DetailRow label="Admin privileges" value={profile.is_admin ? 'Yes' : 'No'} />
+                <DetailRow label="Member since" value={formatDate(profile.created_at)} />
+                <DetailRow label="Last updated" value={formatDate(profile.updated_at)} />
+                {profile.cnic && <DetailRow label="CNIC" value={profile.cnic} />}
+              </dl>
+            </DetailCard>
           </div>
         </div>
       )}

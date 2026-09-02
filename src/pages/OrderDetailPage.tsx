@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { Button } from '../components/ui/Button';
+import { DetailCard, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/Feedback';
 import { formatDate } from '../components/Pagination';
 import { StatusBadge } from '../components/StatusBadge';
+import { FilterSelect } from '../components/FilterBar';
 import {
   fetchOrderById,
   fetchOrderEvents,
@@ -80,7 +83,7 @@ export function OrderDetailPage() {
       ]);
       setOrder(orderData);
       setEvents(eventsData);
-      setSuccess('Order status updated.');
+      setSuccess('Order status updated successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
@@ -89,30 +92,30 @@ export function OrderDetailPage() {
   }
 
   return (
-    <Layout title="Order detail">
-      <Link to="/orders" className="mb-6 inline-block text-sm font-medium text-primary hover:underline">
-        ← Back to orders
-      </Link>
-
-      {loading && <p className="text-gray-500">Loading…</p>}
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      {success && <p className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">{success}</p>}
+    <Layout
+      title={order?.order_number ?? 'Order detail'}
+      subtitle={order ? `Placed ${formatDate(order.created_at)}` : 'Loading order information'}
+      backTo={{ label: 'Back to orders', href: '/orders' }}
+    >
+      {loading && <LoadingState label="Loading order…" />}
+      {error && <ErrorBanner message="Unable to load order" detail={error} />}
+      {success && <div className="mb-6"><SuccessBanner message={success} /></div>}
 
       {order && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <div className="card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">{order.order_number}</h2>
-                <p className="mt-1 text-sm text-gray-500">Created {formatDate(order.created_at)}</p>
+                <p className="text-sm font-medium text-slate-500">Order number</p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-900">{order.order_number}</h2>
               </div>
               <StatusBadge status={order.status} />
             </div>
 
-            <dl className="mt-6 grid gap-4 sm:grid-cols-2 text-sm">
-              <div>
-                <dt className="text-gray-500">Buyer</dt>
-                <dd className="font-medium">
+            <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-slate-50 p-4">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Buyer</dt>
+                <dd className="mt-1 text-sm font-semibold">
                   {buyer ? (
                     <Link to={`/users/${buyer.id}`} className="text-primary hover:underline">
                       {buyer.full_name || buyer.username || buyer.id}
@@ -122,81 +125,107 @@ export function OrderDetailPage() {
                   )}
                 </dd>
               </div>
-              <div>
-                <dt className="text-gray-500">Total</dt>
-                <dd className="font-medium">PKR {order.total.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Shipping to</dt>
-                <dd>
-                  {order.shipping_name}, {order.shipping_line1}, {order.shipping_city}
+              <div className="rounded-lg bg-slate-50 p-4">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</dt>
+                <dd className="mt-1 text-sm font-bold tabular-nums text-slate-900">
+                  PKR {order.total.toLocaleString()}
                 </dd>
               </div>
-              <div>
-                <dt className="text-gray-500">Phone</dt>
-                <dd>{order.shipping_phone}</dd>
+              <div className="rounded-lg bg-slate-50 p-4">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Payment</dt>
+                <dd className="mt-1 text-sm font-medium capitalize">{order.payment_method}</dd>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-4">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">ETA</dt>
+                <dd className="mt-1 text-sm font-medium">{order.eta_label || '—'}</dd>
               </div>
             </dl>
 
-            <div className="mt-6 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-6">
-              <div>
-                <label htmlFor="status" className="mb-1 block text-sm font-medium text-gray-700">
-                  Update status
-                </label>
-                <select
-                  id="status"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as Order['status'])}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                disabled={saving || status === order.status}
+            <div className="mt-6 rounded-lg border border-slate-200/70 bg-slate-50/50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Shipping address</p>
+              <p className="mt-1 text-sm text-slate-800">
+                {order.shipping_name} · {order.shipping_phone}
+              </p>
+              <p className="mt-0.5 text-sm text-slate-600">
+                {order.shipping_line1}
+                {order.shipping_line2 ? `, ${order.shipping_line2}` : ''}, {order.shipping_city},{' '}
+                {order.shipping_region}
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-6">
+              <FilterSelect
+                id="status"
+                label="Update status"
+                value={status}
+                onChange={(v) => setStatus(v as Order['status'])}
+                options={STATUS_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
+              />
+              <Button
                 onClick={handleStatusUpdate}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-50"
+                disabled={saving || status === order.status}
+                size="sm"
+                className="mb-0.5"
               >
                 {saving ? 'Saving…' : 'Save status'}
-              </button>
+              </Button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-gray-900">Items</h3>
-            <ul className="mt-4 divide-y divide-gray-100">
-              {items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between py-3 text-sm">
-                  <div>
-                    <p className="font-medium text-gray-900">{item.title}</p>
-                    <p className="text-gray-500">
-                      Qty {item.quantity} · {item.seller_name}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DetailCard title={`Items (${items.length})`}>
+              <ul className="divide-y divide-slate-100">
+                {items.map((item) => (
+                  <li key={item.id} className="flex items-center gap-4 py-3">
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt=""
+                        className="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">
+                        N/A
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900">{item.title}</p>
+                      <p className="text-xs text-slate-500">
+                        Qty {item.quantity} · {item.seller_name}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-semibold tabular-nums text-slate-900">
+                      PKR {(item.unit_price * item.quantity).toLocaleString()}
                     </p>
-                  </div>
-                  <p className="font-medium">PKR {(item.unit_price * item.quantity).toLocaleString()}</p>
-                </li>
-              ))}
-              {items.length === 0 && <p className="text-sm text-gray-500">No items.</p>}
-            </ul>
-          </div>
+                  </li>
+                ))}
+                {items.length === 0 && (
+                  <p className="py-4 text-sm text-slate-500">No items in this order.</p>
+                )}
+              </ul>
+            </DetailCard>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-gray-900">Timeline</h3>
-            <ol className="mt-4 space-y-4">
-              {events.map((event) => (
-                <li key={event.id} className="border-l-2 border-primary/30 pl-4">
-                  <p className="font-medium text-gray-900">{event.label}</p>
-                  {event.detail && <p className="text-sm text-gray-500">{event.detail}</p>}
-                  <p className="text-xs text-gray-400">{formatDate(event.created_at)}</p>
-                </li>
-              ))}
-              {events.length === 0 && <p className="text-sm text-gray-500">No events yet.</p>}
-            </ol>
+            <DetailCard title="Timeline">
+              {events.length === 0 ? (
+                <p className="text-sm text-slate-500">No events recorded yet.</p>
+              ) : (
+                <ol className="relative space-y-0">
+                  {events.map((event, index) => (
+                    <li key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
+                      {index < events.length - 1 && (
+                        <span className="absolute left-[7px] top-4 h-full w-px bg-slate-200" aria-hidden />
+                      )}
+                      <span className="relative mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-primary bg-white" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-slate-900">{event.label}</p>
+                        {event.detail && <p className="mt-0.5 text-sm text-slate-500">{event.detail}</p>}
+                        <p className="mt-1 text-xs text-slate-400">{formatDate(event.created_at)}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </DetailCard>
           </div>
         </div>
       )}

@@ -2,7 +2,9 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { ShieldPlus, UserCog } from 'lucide-react';
 import { DataTable } from '../components/DataTable';
 import { Layout } from '../components/Layout';
-import { ErrorBanner, LoadingState } from '../components/ui/Feedback';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { ErrorBanner, LoadingState, PageSection, SuccessBanner } from '../components/ui/Feedback';
 import { formatDate } from '../components/Pagination';
 import { createAdminUser, fetchProfiles } from '../services/adminApi';
 import type { Profile } from '../types/database';
@@ -61,63 +63,62 @@ export function AdminsPage() {
 
   return (
     <Layout title="Admins" subtitle="Manage admin accounts and access">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
-          <div className="mb-4 flex items-center gap-2">
-            <UserCog className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-slate-900">Admin users</h2>
-          </div>
-          {error && !submitting && (
-            <div className="mb-4">
-              <ErrorBanner message="Something went wrong" detail={error} />
-            </div>
-          )}
-          {loading && <LoadingState label="Loading admins…" />}
-          {!loading && (
-            <DataTable
-              rows={admins}
-              rowKey={(row) => row.id}
-              emptyMessage="No admins found."
-              columns={[
-                { key: 'name', header: 'Name', render: (row) => row.full_name || '—' },
-                { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
-                { key: 'joined', header: 'Joined', render: (row) => formatDate(row.created_at) },
-              ]}
-            />
-          )}
+      <div className="grid gap-8 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <PageSection title="Admin users">
+            {error && !submitting && (
+              <div className="mb-4">
+                <ErrorBanner message="Something went wrong" detail={error} />
+              </div>
+            )}
+            {loading && <LoadingState label="Loading admins…" />}
+            {!loading && (
+              <DataTable
+                rows={admins}
+                rowKey={(row) => row.id}
+                emptyMessage="No admin accounts found."
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'Name',
+                    render: (row) => (
+                      <span className="font-medium text-slate-900">{row.full_name || '—'}</span>
+                    ),
+                  },
+                  { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
+                  { key: 'joined', header: 'Joined', render: (row) => formatDate(row.created_at) },
+                ]}
+              />
+            )}
+          </PageSection>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center gap-2">
-            <ShieldPlus className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-slate-900">Add admin</h2>
-          </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Creates an email/password account with full admin access.
-          </p>
+        <div className="lg:col-span-2">
+          <div className="card p-6">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-muted text-primary">
+                <ShieldPlus className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Add admin</h2>
+                <p className="text-xs text-slate-500">Create a new admin account</p>
+              </div>
+            </div>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
-              </label>
-              <input
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              <Input
+                label="Email"
                 id="admin-email"
                 type="email"
                 required
                 autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 placeholder="admin@company.com"
               />
-            </div>
 
-            <div>
-              <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Password
-              </label>
-              <input
+              <Input
+                label="Password"
                 id="admin-password"
                 type="password"
                 required
@@ -125,38 +126,33 @@ export function AdminsPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                placeholder="Minimum 6 characters"
+                hint="Minimum 6 characters"
               />
-            </div>
 
-            <div>
-              <label htmlFor="admin-name" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Full name (optional)
-              </label>
-              <input
+              <Input
+                label="Full name"
                 id="admin-name"
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="Optional"
               />
-            </div>
 
-            {success && (
-              <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                {success}
-              </p>
-            )}
+              {success && <SuccessBanner message={success} />}
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark disabled:opacity-50"
-            >
-              {submitting ? 'Creating admin…' : 'Create admin account'}
-            </button>
-          </form>
+              <Button type="submit" disabled={submitting} className="w-full">
+                {submitting ? 'Creating admin…' : 'Create admin account'}
+              </Button>
+            </form>
+          </div>
+
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-slate-200/70 bg-slate-50 p-4">
+            <UserCog className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <p className="text-xs leading-relaxed text-slate-500">
+              New admins receive full access to the console immediately. Share credentials securely
+              and encourage password changes on first login.
+            </p>
+          </div>
         </div>
       </div>
     </Layout>

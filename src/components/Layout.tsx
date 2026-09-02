@@ -1,16 +1,41 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
-export function Layout({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
+type LayoutProps = {
+  children: ReactNode;
+  title: string;
+  subtitle?: string;
+  backTo?: { label: string; href: string };
+};
+
+export function Layout({ children, title, subtitle, backTo }: LayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white/90 px-8 py-5 backdrop-blur">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
-        </header>
-        <main className="flex-1 px-8 py-6">{children}</main>
+    <div className="flex min-h-screen bg-slate-100/80">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-0">
+        <Header
+          title={title}
+          subtitle={subtitle}
+          backTo={backTo}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <div className="page-container">{children}</div>
+        </main>
       </div>
     </div>
   );
