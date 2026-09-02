@@ -90,21 +90,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.functions.invoke('admin-login', {
+    let sessionUserId: string | null = null;
+
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-login', {
       body: { email, password },
     });
 
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
+    if (!fnError && fnData?.access_token && fnData?.refresh_token) {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: fnData.access_token,
+        refresh_token: fnData.refresh_token,
+      });
+      if (sessionError) throw sessionError;
+      sessionUserId = fnData.user?.id ?? null;
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      sessionUserId = data.user.id;
+    }
 
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    });
+    if (!sessionUserId) {
+      throw new Error('Sign in failed');
+    }
 
-    if (sessionError) throw sessionError;
-
-    const adminProfile = await fetchAdminProfile(data.user.id);
+    const adminProfile = await fetchAdminProfile(sessionUserId);
     if (!adminProfile) {
       await supabase.auth.signOut();
       throw new Error('Not authorized. Admin access only.');
