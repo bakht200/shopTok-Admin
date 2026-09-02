@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { DataTable } from '../components/DataTable';
 import { Layout } from '../components/Layout';
+import { ErrorBanner, LoadingState } from '../components/ui/Feedback';
 import { Pagination, formatDate } from '../components/Pagination';
 import { PAGE_SIZE, fetchProfiles, setUserBanned } from '../services/adminApi';
 import type { Profile } from '../types/database';
@@ -47,35 +49,40 @@ export function UsersPage() {
   }
 
   return (
-    <Layout title="Users">
-      <div className="mb-6 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[240px]">
-          <label htmlFor="search" className="mb-1 block text-sm font-medium text-gray-700">
+    <Layout title="Users" subtitle="Browse, search, and moderate marketplace users">
+      <div className="card mb-6 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[240px] flex-1">
+            <label htmlFor="search" className="mb-1.5 block text-sm font-medium text-slate-700">
+              Search users
+            </label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="search"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Name, username, or phone"
+                className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPage(0);
+              setQuery(search);
+            }}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark"
+          >
             Search
-          </label>
-          <input
-            id="search"
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, username, or phone"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setPage(0);
-            setQuery(search);
-          }}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
-        >
-          Search
-        </button>
       </div>
 
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      {loading && <p className="text-gray-500">Loading users…</p>}
+      {error && <div className="mb-4"><ErrorBanner message="Failed to load users" detail={error} /></div>}
+      {loading && <LoadingState label="Loading users…" />}
 
       {!loading && (
         <>
@@ -87,24 +94,24 @@ export function UsersPage() {
                 key: 'name',
                 header: 'Name',
                 render: (row) => (
-                  <Link to={`/users/${row.id}`} className="font-medium text-primary hover:underline">
+                  <Link to={`/users/${row.id}`} className="font-semibold text-primary hover:underline">
                     {row.full_name || '—'}
                   </Link>
                 ),
               },
               { key: 'username', header: 'Username', render: (row) => row.username ?? '—' },
               { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
-              { key: 'role', header: 'Role', render: (row) => row.role_intent },
+              { key: 'role', header: 'Role', render: (row) => <span className="capitalize">{row.role_intent}</span> },
               {
                 key: 'banned',
                 header: 'Banned',
-                render: (row) => (row.is_banned ? 'Yes' : 'No'),
+                render: (row) => (
+                  <span className={row.is_banned ? 'font-medium text-red-600' : 'text-slate-500'}>
+                    {row.is_banned ? 'Yes' : 'No'}
+                  </span>
+                ),
               },
-              {
-                key: 'created',
-                header: 'Joined',
-                render: (row) => formatDate(row.created_at),
-              },
+              { key: 'created', header: 'Joined', render: (row) => formatDate(row.created_at) },
               {
                 key: 'actions',
                 header: 'Actions',
@@ -113,7 +120,7 @@ export function UsersPage() {
                     type="button"
                     disabled={busyId === row.id || row.is_admin}
                     onClick={() => toggleBan(row)}
-                    className="text-sm font-medium text-primary hover:underline disabled:opacity-40"
+                    className="text-sm font-semibold text-primary hover:underline disabled:opacity-40"
                   >
                     {row.is_banned ? 'Unban' : 'Ban'}
                   </button>

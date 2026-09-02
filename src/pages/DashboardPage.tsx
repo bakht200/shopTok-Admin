@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Users, ShoppingBag, Truck, FileImage } from 'lucide-react';
 import { DataTable } from '../components/DataTable';
 import { Layout } from '../components/Layout';
+import { ErrorBanner, LoadingState, PageSection } from '../components/ui/Feedback';
+import { StatCard } from '../components/ui/StatCard';
 import { formatDate } from '../components/Pagination';
 import { StatusBadge } from '../components/StatusBadge';
 import { fetchDashboardCounts, fetchRecentOrders } from '../services/adminApi';
@@ -34,73 +37,60 @@ export function DashboardPage() {
 
   const statCards = counts
     ? [
-        { label: 'Users', value: counts.users, to: '/users' },
-        { label: 'Orders', value: counts.orders, to: '/orders' },
-        { label: 'Deliveries', value: counts.deliveries, to: '/deliveries' },
-        { label: 'Posts', value: counts.posts, to: '/content' },
+        { label: 'Total users', value: counts.users, to: '/users', icon: Users, accent: 'bg-blue-50 text-blue-600' },
+        { label: 'Orders', value: counts.orders, to: '/orders', icon: ShoppingBag, accent: 'bg-violet-50 text-violet-600' },
+        { label: 'Deliveries', value: counts.deliveries, to: '/deliveries', icon: Truck, accent: 'bg-amber-50 text-amber-600' },
+        { label: 'Posts', value: counts.posts, to: '/content', icon: FileImage, accent: 'bg-pink-50 text-pink-600' },
       ]
     : [];
 
   return (
-    <Layout title="Dashboard">
-      {loading && <p className="text-gray-500">Loading dashboard…</p>}
-      {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+    <Layout title="Dashboard" subtitle="Overview of your ShopTok marketplace">
+      {loading && <LoadingState label="Loading dashboard…" />}
+      {error && (
+        <ErrorBanner
+          message="Failed to load dashboard"
+          detail={error.includes('recursion') ? 'Database policy fix pending — run migration 20260902180000_fix_admin_rls_recursion.sql in Supabase SQL Editor.' : error}
+        />
+      )}
 
-      {!loading && counts && (
-        <>
+      {!loading && !error && counts && (
+        <div className="space-y-8">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {statCards.map((card) => (
-              <Link
-                key={card.label}
-                to={card.to}
-                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow"
-              >
-                <p className="text-sm font-medium text-gray-500">{card.label}</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">{card.value}</p>
-              </Link>
+              <StatCard key={card.label} {...card} />
             ))}
           </div>
 
-          <div className="mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Recent orders</h2>
-              <Link to="/orders" className="text-sm font-medium text-primary hover:underline">
-                View all
+          <PageSection
+            title="Recent orders"
+            action={
+              <Link to="/orders" className="text-sm font-semibold text-primary hover:text-primary-dark">
+                View all →
               </Link>
-            </div>
-
+            }
+          >
             <DataTable
               rows={orders}
               rowKey={(row) => row.id}
+              emptyMessage="No orders yet."
               columns={[
                 {
                   key: 'order_number',
                   header: 'Order #',
                   render: (row) => (
-                    <Link to={`/orders/${row.id}`} className="font-medium text-primary hover:underline">
+                    <Link to={`/orders/${row.id}`} className="font-semibold text-primary hover:underline">
                       {row.order_number}
                     </Link>
                   ),
                 },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row) => <StatusBadge status={row.status} />,
-                },
-                {
-                  key: 'total',
-                  header: 'Total',
-                  render: (row) => `PKR ${row.total.toLocaleString()}`,
-                },
-                {
-                  key: 'created_at',
-                  header: 'Created',
-                  render: (row) => formatDate(row.created_at),
-                },
+                { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+                { key: 'total', header: 'Total', render: (row) => `PKR ${Number(row.total).toLocaleString()}` },
+                { key: 'created_at', header: 'Created', render: (row) => formatDate(row.created_at) },
               ]}
             />
-          </div>
-        </>
+          </PageSection>
+        </div>
       )}
     </Layout>
   );

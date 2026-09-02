@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { Layout } from '../components/Layout';
+import { ErrorBanner, LoadingState } from '../components/ui/Feedback';
 import { Pagination, formatDate } from '../components/Pagination';
 import { StatusBadge } from '../components/StatusBadge';
 import { PAGE_SIZE, fetchDeliveries, fetchProfilesByIds } from '../services/adminApi';
@@ -42,9 +43,9 @@ export function DeliveriesPage() {
   }, [load]);
 
   return (
-    <Layout title="Deliveries">
-      <div className="mb-6">
-        <label htmlFor="delivery-status" className="mb-1 block text-sm font-medium text-gray-700">
+    <Layout title="Deliveries" subtitle="Monitor rider jobs and fulfillment">
+      <div className="card mb-6 p-4">
+        <label htmlFor="delivery-status" className="mb-1.5 block text-sm font-medium text-slate-700">
           Filter by status
         </label>
         <select
@@ -54,7 +55,7 @@ export function DeliveriesPage() {
             setPage(0);
             setStatus(e.target.value);
           }}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         >
           {STATUS_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>
@@ -64,40 +65,29 @@ export function DeliveriesPage() {
         </select>
       </div>
 
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      {loading && <p className="text-gray-500">Loading deliveries…</p>}
+      {error && <div className="mb-4"><ErrorBanner message="Failed to load deliveries" detail={error} /></div>}
+      {loading && <LoadingState label="Loading deliveries…" />}
 
       {!loading && (
         <>
           <DataTable
             rows={rows}
             rowKey={(row) => row.id}
+            emptyMessage="No delivery jobs found."
             columns={[
               { key: 'order_number', header: 'Order #', render: (row) => row.order_number },
-              {
-                key: 'status',
-                header: 'Status',
-                render: (row) => <StatusBadge status={row.status} />,
-              },
+              { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
               {
                 key: 'rider',
                 header: 'Rider',
                 render: (row) => {
-                  if (!row.rider_id) return 'Unassigned';
+                  if (!row.rider_id) return <span className="text-slate-400">Unassigned</span>;
                   const rider = riders.get(row.rider_id);
-                  return rider?.full_name || rider?.username || row.rider_id.slice(0, 8) + '…';
+                  return rider?.full_name || rider?.username || `${row.rider_id.slice(0, 8)}…`;
                 },
               },
-              {
-                key: 'payout',
-                header: 'Payout',
-                render: (row) => `PKR ${row.payout.toLocaleString()}`,
-              },
-              {
-                key: 'created',
-                header: 'Created',
-                render: (row) => formatDate(row.created_at),
-              },
+              { key: 'payout', header: 'Payout', render: (row) => `PKR ${Number(row.payout).toLocaleString()}` },
+              { key: 'created', header: 'Created', render: (row) => formatDate(row.created_at) },
             ]}
           />
           <Pagination page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />

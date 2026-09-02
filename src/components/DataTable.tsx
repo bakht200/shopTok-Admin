@@ -17,33 +17,31 @@ type DataTableProps<T> = {
 export function DataTable<T>({ columns, rows, rowKey, emptyMessage = 'No records found.' }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-        {emptyMessage}
-      </div>
+      <div className="card px-6 py-10 text-center text-sm text-slate-500">{emptyMessage}</div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+    <div className="card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50/80">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 ${col.className ?? ''}`}
+                  className={`px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 ${col.className ?? ''}`}
                 >
                   {col.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
-              <tr key={rowKey(row)} className="hover:bg-gray-50">
+              <tr key={rowKey(row)} className="transition hover:bg-slate-50/70">
                 {columns.map((col) => (
-                  <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className ?? ''}`}>
+                  <td key={col.key} className={`px-5 py-4 text-slate-700 ${col.className ?? ''}`}>
                     {col.render(row)}
                   </td>
                 ))}
