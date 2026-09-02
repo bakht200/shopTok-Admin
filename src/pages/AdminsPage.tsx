@@ -1,6 +1,8 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { ShieldPlus, UserCog } from 'lucide-react';
 import { DataTable } from '../components/DataTable';
 import { Layout } from '../components/Layout';
+import { ErrorBanner, LoadingState } from '../components/ui/Feedback';
 import { formatDate } from '../components/Pagination';
 import { createAdminUser, fetchProfiles } from '../services/adminApi';
 import type { Profile } from '../types/database';
@@ -45,7 +47,7 @@ export function AdminsPage() {
         password,
         full_name: fullName.trim() || undefined,
       });
-      setSuccess(`Admin ${created.email} created successfully.`);
+      setSuccess(`Admin ${created.email} was created and can sign in immediately.`);
       setEmail('');
       setPassword('');
       setFullName('');
@@ -58,11 +60,19 @@ export function AdminsPage() {
   }
 
   return (
-    <Layout title="Admins">
-      <div className="grid gap-8 lg:grid-cols-2">
+    <Layout title="Admins" subtitle="Manage admin accounts and access">
+      <div className="grid gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Admin users</h2>
-          {loading && <p className="text-gray-500">Loading…</p>}
+          <div className="mb-4 flex items-center gap-2">
+            <UserCog className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-slate-900">Admin users</h2>
+          </div>
+          {error && !submitting && (
+            <div className="mb-4">
+              <ErrorBanner message="Something went wrong" detail={error} />
+            </div>
+          )}
+          {loading && <LoadingState label="Loading admins…" />}
           {!loading && (
             <DataTable
               rows={admins}
@@ -71,39 +81,40 @@ export function AdminsPage() {
               columns={[
                 { key: 'name', header: 'Name', render: (row) => row.full_name || '—' },
                 { key: 'phone', header: 'Phone', render: (row) => row.phone ?? '—' },
-                {
-                  key: 'joined',
-                  header: 'Joined',
-                  render: (row) => formatDate(row.created_at),
-                },
+                { key: 'joined', header: 'Joined', render: (row) => formatDate(row.created_at) },
               ]}
             />
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Add admin</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Creates a Supabase Auth user with email/password and sets is_admin.
+        <div className="card p-6">
+          <div className="flex items-center gap-2">
+            <ShieldPlus className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-slate-900">Add admin</h2>
+          </div>
+          <p className="mt-2 text-sm text-slate-500">
+            Creates an email/password account with full admin access.
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label htmlFor="admin-email" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Email
               </label>
               <input
                 id="admin-email"
                 type="email"
                 required
+                autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="admin@company.com"
               />
             </div>
 
             <div>
-              <label htmlFor="admin-password" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Password
               </label>
               <input
@@ -111,14 +122,16 @@ export function AdminsPage() {
                 type="password"
                 required
                 minLength={6}
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="Minimum 6 characters"
               />
             </div>
 
             <div>
-              <label htmlFor="admin-name" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="admin-name" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Full name (optional)
               </label>
               <input
@@ -126,21 +139,22 @@ export function AdminsPage() {
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             {success && (
-              <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{success}</p>
+              <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                {success}
+              </p>
             )}
 
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark disabled:opacity-50"
             >
-              {submitting ? 'Creating…' : 'Create admin'}
+              {submitting ? 'Creating admin…' : 'Create admin account'}
             </button>
           </form>
         </div>

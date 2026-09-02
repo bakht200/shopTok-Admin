@@ -92,20 +92,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     let sessionUserId: string | null = null;
 
-    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-login', {
-      body: { email, password },
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (!fnError && fnData?.access_token && fnData?.refresh_token) {
+    if (error?.message?.includes('Email logins are disabled')) {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-login', {
+        body: { email, password },
+      });
+
+      if (fnError || !fnData?.access_token || !fnData?.refresh_token) {
+        throw fnError ?? new Error('Admin login service unavailable');
+      }
+
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: fnData.access_token,
         refresh_token: fnData.refresh_token,
       });
       if (sessionError) throw sessionError;
       sessionUserId = fnData.user?.id ?? null;
+    } else if (error) {
+      throw error;
     } else {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
       sessionUserId = data.user.id;
     }
 

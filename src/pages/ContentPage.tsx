@@ -86,7 +86,7 @@ export function ContentPage() {
   }
 
   return (
-    <Layout title="Content moderation">
+    <Layout title="Content" subtitle="Moderate posts and product listings">
       <div className="mb-6 flex gap-2">
         {(['posts', 'products'] as Tab[]).map((key) => (
           <button

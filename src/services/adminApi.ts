@@ -12,6 +12,37 @@ import type {
 
 const PAGE_SIZE = 20;
 
+function parseInvokeError(error: unknown, data: unknown): string {
+  if (data && typeof data === 'object' && 'error' in data && typeof (data as { error: string }).error === 'string') {
+    return (data as { error: string }).error;
+  }
+  if (error instanceof Error) {
+    if (error.message.includes('not found') || error.message.includes('NOT_FOUND')) {
+      return 'Admin API not deployed. Ask your developer to run: node scripts/deploy-admin-backend.mjs';
+    }
+    return error.message;
+  }
+  return 'Request failed';
+}
+
+async function invokeFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+
+  if (error) {
+    throw new Error(parseInvokeError(error, data));
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: string }).error));
+  }
+  return data as T;
+}
+
+type ListResult<T> = { rows: T[]; total: number };
+
+function profilesFromJson(rows: unknown): Profile[] {
+  return (rows ?? []) as Profile[];
+}
+
 export async function fetchDashboardCounts(): Promise<DashboardCounts> {
   const { data, error } = await supabase.rpc('admin_dashboard_counts');
   if (error) throw error;
@@ -19,68 +50,51 @@ export async function fetchDashboardCounts(): Promise<DashboardCounts> {
 }
 
 export async function fetchRecentOrders(limit = 10): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
+  const { data, error } = await supabase.rpc('admin_list_orders', {
+    p_search: null,
+    p_status: null,
+    p_limit: limit,
+    p_offset: 0,
+  });
   if (error) throw error;
-  return (data ?? []) as Order[];
+  const parsed = data as ListResult<Order>;
+  return parsed.rows ?? [];
 }
 
 export async function fetchProfiles(options: {
   search?: string;
   page?: number;
   adminsOnly?: boolean;
-}): Promise<{ rows: Profile[]; total: number }> {
+}): Promise<ListResult<Profile>> {
   const page = options.page ?? 0;
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  let query = supabase
-    .from('profiles')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false });
-
-  if (options.adminsOnly) {
-    query = query.eq('is_admin', true);
-  }
-
-  if (options.search?.trim()) {
-    const term = `%${options.search.trim()}%`;
-    query = query.or(`full_name.ilike.${term},username.ilike.${term},phone.ilike.${term}`);
-  }
-
-  const { data, error, count } = await query.range(from, to);
+  const { data, error } = await supabase.rpc('admin_list_profiles', {
+    p_search: options.search?.trim() || null,
+    p_admins_only: options.adminsOnly ?? false,
+    p_limit: PAGE_SIZE,
+    p_offset: page * PAGE_SIZE,
+  });
   if (error) throw error;
-
-  return { rows: (data ?? []) as Profile[], total: count ?? 0 };
+  const parsed = data as ListResult<Profile>;
+  return { rows: profilesFromJson(parsed.rows), total: parsed.total ?? 0 };
 }
 
 export async function fetchProfileById(id: string): Promise<Profile | null> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.rpc('admin_get_profile', { p_id: id });
   if (error) throw error;
-  return data as Profile | null;
+  return (data as Profile | null) ?? null;
 }
 
 export async function fetchUserStats(userId: string): Promise<{ orders: number; posts: number }> {
-  const [ordersRes, postsRes] = await Promise.all([
-    supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', userId),
-    supabase.from('posts').select('id', { count: 'exact', head: true }).eq('seller_id', userId),
-  ]);
-
-  if (ordersRes.error) throw ordersRes.error;
-  if (postsRes.error) throw postsRes.error;
-
-  return {
-    orders: ordersRes.count ?? 0,
-    posts: postsRes.count ?? 0,
-  };
+  const { data, error } = await supabase.rpc('admin_get_user_stats', { p_user_id: userId });
+  if (error) throw error;
+  return data as { orders: number; posts: number };
 }
 
 export async function setUserBanned(userId: string, isBanned: boolean): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ is_banned: isBanned }).eq('id', userId);
+  const { error } = await supabase.rpc('admin_set_user_banned', {
+    p_user_id: userId,
+    p_is_banned: isBanned,
+  });
   if (error) throw error;
 }
 
@@ -89,153 +103,115 @@ export async function createAdminUser(input: {
   password: string;
   full_name?: string;
 }): Promise<{ id: string; email: string }> {
-  const { data, error } = await supabase.functions.invoke('admin-create-user', {
-    body: input,
+  const { data, error } = await supabase.rpc('admin_create_user', {
+    p_email: input.email.trim(),
+    p_password: input.password,
+    p_full_name: input.full_name?.trim() || null,
   });
 
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data as { id: string; email: string };
+  if (!error && data && typeof data === 'object' && 'id' in data && 'email' in data) {
+    return data as { id: string; email: string };
+  }
+
+  if (error && error.code !== 'PGRST202') {
+    throw new Error(error.message);
+  }
+
+  return invokeFunction('admin-create-user', input);
 }
 
 export async function fetchOrders(options: {
   search?: string;
   status?: string;
   page?: number;
-}): Promise<{ rows: Order[]; total: number }> {
+}): Promise<ListResult<Order>> {
   const page = options.page ?? 0;
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  let query = supabase
-    .from('orders')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false });
-
-  if (options.status && options.status !== 'all') {
-    query = query.eq('status', options.status);
-  }
-
-  if (options.search?.trim()) {
-    query = query.ilike('order_number', `%${options.search.trim()}%`);
-  }
-
-  const { data, error, count } = await query.range(from, to);
+  const { data, error } = await supabase.rpc('admin_list_orders', {
+    p_search: options.search?.trim() || null,
+    p_status: options.status && options.status !== 'all' ? options.status : null,
+    p_limit: PAGE_SIZE,
+    p_offset: page * PAGE_SIZE,
+  });
   if (error) throw error;
-
-  return { rows: (data ?? []) as Order[], total: count ?? 0 };
+  const parsed = data as ListResult<Order>;
+  return { rows: (parsed.rows ?? []) as Order[], total: parsed.total ?? 0 };
 }
 
 export async function fetchOrderById(id: string): Promise<Order | null> {
-  const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.rpc('admin_get_order', { p_id: id });
   if (error) throw error;
-  return data as Order | null;
+  return (data as Order | null) ?? null;
 }
 
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
-  const { data, error } = await supabase.from('order_items').select('*').eq('order_id', orderId);
+  const { data, error } = await supabase.rpc('admin_list_order_items', { p_order_id: orderId });
   if (error) throw error;
   return (data ?? []) as OrderItem[];
 }
 
 export async function fetchOrderEvents(orderId: string): Promise<OrderEvent[]> {
-  const { data, error } = await supabase
-    .from('order_events')
-    .select('*')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: true });
-
+  const { data, error } = await supabase.rpc('admin_list_order_events', { p_order_id: orderId });
   if (error) throw error;
   return (data ?? []) as OrderEvent[];
 }
 
-const STATUS_LABELS: Record<Order['status'], string> = {
-  placed: 'Order placed',
-  packing: 'Packing',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-};
-
 export async function updateOrderStatus(orderId: string, status: Order['status']): Promise<void> {
-  const { error: orderError } = await supabase.from('orders').update({ status }).eq('id', orderId);
-  if (orderError) throw orderError;
-
-  const { error: eventError } = await supabase.from('order_events').insert({
-    order_id: orderId,
-    status,
-    label: STATUS_LABELS[status],
-    detail: 'Updated by admin',
+  const { error } = await supabase.rpc('admin_update_order_status', {
+    p_order_id: orderId,
+    p_status: status,
   });
-
-  if (eventError) throw eventError;
+  if (error) throw error;
 }
 
 export async function fetchDeliveries(options: {
   status?: string;
   page?: number;
-}): Promise<{ rows: Delivery[]; total: number }> {
+}): Promise<ListResult<Delivery>> {
   const page = options.page ?? 0;
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  let query = supabase
-    .from('deliveries')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false });
-
-  if (options.status && options.status !== 'all') {
-    query = query.eq('status', options.status);
-  }
-
-  const { data, error, count } = await query.range(from, to);
+  const { data, error } = await supabase.rpc('admin_list_deliveries', {
+    p_status: options.status && options.status !== 'all' ? options.status : null,
+    p_limit: PAGE_SIZE,
+    p_offset: page * PAGE_SIZE,
+  });
   if (error) throw error;
-
-  return { rows: (data ?? []) as Delivery[], total: count ?? 0 };
+  const parsed = data as ListResult<Delivery>;
+  return { rows: (parsed.rows ?? []) as Delivery[], total: parsed.total ?? 0 };
 }
 
-export async function fetchPosts(page = 0): Promise<{ rows: Post[]; total: number }> {
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  const { data, error, count } = await supabase
-    .from('posts')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
-
+export async function fetchPosts(page = 0): Promise<ListResult<Post>> {
+  const { data, error } = await supabase.rpc('admin_list_posts', {
+    p_limit: PAGE_SIZE,
+    p_offset: page * PAGE_SIZE,
+  });
   if (error) throw error;
-  return { rows: (data ?? []) as Post[], total: count ?? 0 };
+  const parsed = data as ListResult<Post>;
+  return { rows: (parsed.rows ?? []) as Post[], total: parsed.total ?? 0 };
 }
 
-export async function fetchProducts(page = 0): Promise<{ rows: Product[]; total: number }> {
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  const { data, error, count } = await supabase
-    .from('products')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
-
+export async function fetchProducts(page = 0): Promise<ListResult<Product>> {
+  const { data, error } = await supabase.rpc('admin_list_products', {
+    p_limit: PAGE_SIZE,
+    p_offset: page * PAGE_SIZE,
+  });
   if (error) throw error;
-  return { rows: (data ?? []) as Product[], total: count ?? 0 };
+  const parsed = data as ListResult<Product>;
+  return { rows: (parsed.rows ?? []) as Product[], total: parsed.total ?? 0 };
 }
 
 export async function deletePost(id: string): Promise<void> {
-  const { error } = await supabase.from('posts').delete().eq('id', id);
+  const { error } = await supabase.rpc('admin_delete_post', { p_id: id });
   if (error) throw error;
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  const { error } = await supabase.from('products').delete().eq('id', id);
+  const { error } = await supabase.rpc('admin_delete_product', { p_id: id });
   if (error) throw error;
 }
 
 export async function fetchProfilesByIds(ids: string[]): Promise<Map<string, Profile>> {
   if (ids.length === 0) return new Map();
 
-  const { data, error } = await supabase.from('profiles').select('*').in('id', ids);
+  const { data, error } = await supabase.rpc('admin_get_profiles_by_ids', { p_ids: ids });
   if (error) throw error;
 
   const map = new Map<string, Profile>();
